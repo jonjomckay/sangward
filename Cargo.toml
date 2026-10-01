@@ -1,0 +1,80 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/keyward-core",
+    "crates/keyward-ipc",
+    "crates/keyward-client",
+    "crates/keyward-agent",
+    "crates/keyward-platform",
+    "crates/keyward-cli",
+    "crates/keyward-gtk",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.93"
+
+[workspace.dependencies]
+# Internal
+keyward-core = { path = "crates/keyward-core" }
+keyward-ipc = { path = "crates/keyward-ipc" }
+keyward-client = { path = "crates/keyward-client" }
+keyward-platform = { path = "crates/keyward-platform" }
+
+# Serialization
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+
+# Async / IO
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync", "signal", "fs", "process"] }
+
+# HTTP: rustls + rustls-platform-verifier (system trust store)
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "form", "http2"] }
+url = "=2.5.8"
+
+# Crypto
+aes = "=0.8.4"
+cbc = { version = "=0.1.2", features = ["alloc"] }
+hmac = "=0.12.1"
+sha1 = "=0.10.7"
+sha2 = "=0.10.9"
+hkdf = "=0.12.4"
+pbkdf2 = { version = "=0.12.2", default-features = false, features = ["hmac"] }
+argon2 = { version = "=0.5.3", features = ["alloc"] }
+rsa = { version = "=0.9.10", features = ["sha2"] }
+rand = "=0.8.8"
+subtle = "=2.6.1"
+base64 = "=0.22.1"
+totp-rs = { version = "=5.7.2", features = ["otpauth", "steam"] }
+
+# Secrets hygiene
+secrecy = "=0.10.3"
+zeroize = { version = "=1.9.0", features = ["derive"] }
+
+# Misc
+uuid = { version = "=1.26.1", features = ["v4"] }
+thiserror = "=2.0.21"
+anyhow = "=1.0.104"
+clap = { version = "=4.6.7", features = ["derive", "env"] }
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter", "fmt"] }
+libc = "=0.2.189"
+rpassword = "=7.5.4"
+tempfile = "=3.27.0"
+
+# Platform
+oo7 = { version = "=0.5.0", default-features = false, features = ["tokio", "native_crypto"] }
+ksni = { version = "=0.3.6", default-features = false, features = ["tokio", "blocking"] }
+arboard = { version = "=3.6.1", default-features = false, features = ["wayland-data-control"] }
+
+# GTK
+relm4 = { version = "=0.11.0", default-features = false, features = ["macros", "libadwaita", "gnome_46"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[profile.dev.package."*"]
+# KDFs (600k PBKDF2 rounds, Argon2) are painfully slow unoptimized.
+opt-level = 2

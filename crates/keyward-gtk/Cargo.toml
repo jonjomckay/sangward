@@ -1,0 +1,29 @@
+[package]
+name = "keyward-gtk"
+description = "keyward GTK4/libadwaita frontend (Relm4)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+keyward-ipc.workspace = true
+keyward-client.workspace = true
+keyward-platform.workspace = true
+relm4.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+keyward-ipc.workspace = true
+tokio.workspace = true
+
+# In-process UI tests. GTK needs the process main thread, so no libtest harness.
+# Needs a display; run via `just gtk-ui` (Xvfb + private D-Bus), not plain `cargo test`.
+[[test]]
+name = "ui"
+harness = false
+test = false
+
+[lints]
+workspace = true
