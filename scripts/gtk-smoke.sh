@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Headless GTK smoke test: launch keyward-gtk under Xvfb with a private D-Bus
+# Headless GTK smoke test: launch sangward-gtk under Xvfb with a private D-Bus
 # session and throwaway XDG dirs; it must reach the login screen without panicking.
 set -euo pipefail
 
-: "${KW_VW_URL:?run inside the devenv shell}" "${KW_CA_CERT:?}"
+: "${SW_VW_URL:?run inside the devenv shell}" "${SW_CA_CERT:?}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cargo build -q -p keyward-gtk -p keyward-agent
+cargo build -q -p sangward-gtk -p sangward-agent
 BIN="$ROOT/target/debug"
 
-tmp="$(mktemp -d -t keyward-gtk.XXXXXX)"
+tmp="$(mktemp -d -t sangward-gtk.XXXXXX)"
 trap 'rm -rf -- "$tmp"' EXIT
 export XDG_RUNTIME_DIR="$tmp/run" XDG_DATA_HOME="$tmp/data" XDG_CONFIG_HOME="$tmp/config" HOME="$tmp/home"
-mkdir -p "$XDG_RUNTIME_DIR" "$HOME" "$XDG_CONFIG_HOME/keyward" && chmod 700 "$XDG_RUNTIME_DIR"
+mkdir -p "$XDG_RUNTIME_DIR" "$HOME" "$XDG_CONFIG_HOME/sangward" && chmod 700 "$XDG_RUNTIME_DIR"
 # Prefill the login form with the seeded server (exercises Settings loading too).
-printf '{"server_url":"%s","email":"smoke@example.test"}\n' "$KW_VW_URL" >"$XDG_CONFIG_HOME/keyward/settings.json"
+printf '{"server_url":"%s","email":"smoke@example.test"}\n' "$SW_VW_URL" >"$XDG_CONFIG_HOME/sangward/settings.json"
 
-export SSL_CERT_FILE="$KW_CA_CERT"
-export KEYWARD_AGENT_BIN="$BIN/keyward-agent"
-export KEYWARD_GTK_AGENT_ARGS="--secret-store memory"
-export KEYWARD_AGENT_LOG="$tmp/agent.log"
-export KEYWARD_LOG=info GDK_BACKEND=x11 GSK_RENDERER=cairo NO_AT_BRIDGE=1 RUST_BACKTRACE=1
+export SSL_CERT_FILE="$SW_CA_CERT"
+export SANGWARD_AGENT_BIN="$BIN/sangward-agent"
+export SANGWARD_GTK_AGENT_ARGS="--secret-store memory"
+export SANGWARD_AGENT_LOG="$tmp/agent.log"
+export SANGWARD_LOG=info GDK_BACKEND=x11 GSK_RENDERER=cairo NO_AT_BRIDGE=1 RUST_BACKTRACE=1
 log="$ROOT/target/gtk-smoke.log"
 
 set +e
@@ -42,20 +42,20 @@ cat >"$tmp/session.conf" <<EOF
 EOF
 export GTK_USE_PORTAL=0 GDK_DEBUG=no-portals NO_COLOR=1
 dbus-run-session --config-file="$tmp/session.conf" -- xvfb-run -a -s "-screen 0 1280x800x24" \
-  timeout --signal=TERM --kill-after=5 8 "$BIN/keyward-gtk" >"$log" 2>&1
+  timeout --signal=TERM --kill-after=5 8 "$BIN/sangward-gtk" >"$log" 2>&1
 rc=$?
 set -e
 # Stop the agent the GUI auto-spawned (the GUI was killed by timeout, so it couldn't).
-"$BIN/keyward" --no-spawn stop-agent >/dev/null 2>&1 || true
+"$BIN/sangward" --no-spawn stop-agent >/dev/null 2>&1 || true
 
 if grep -qE "panicked at|SIGSEGV|Segmentation fault" "$log"; then
-  echo "gtk-smoke: keyward-gtk panicked/crashed:" >&2; cat "$log" >&2; exit 1
+  echo "gtk-smoke: sangward-gtk panicked/crashed:" >&2; cat "$log" >&2; exit 1
 fi
 # 124 = killed by timeout, i.e. it was still running happily.
 if [[ $rc -ne 124 ]]; then
-  echo "gtk-smoke: keyward-gtk exited early with $rc:" >&2; cat "$log" >&2; exit 1
+  echo "gtk-smoke: sangward-gtk exited early with $rc:" >&2; cat "$log" >&2; exit 1
 fi
 if ! grep -qE 'screen changed screen="?login' "$log"; then
   echo "gtk-smoke: never reached the login screen:" >&2; cat "$log" >&2; exit 1
 fi
-echo "gtk-smoke: keyward-gtk started headless and reached the login screen (log: $log)"
+echo "gtk-smoke: sangward-gtk started headless and reached the login screen (log: $log)"

@@ -1468,124 +1468,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keyward-agent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "keyward-core",
- "keyward-ipc",
- "keyward-platform",
- "libc",
- "secrecy",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "uuid",
- "zeroize",
-]
-
-[[package]]
-name = "keyward-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "keyward-client",
- "keyward-ipc",
- "keyward-platform",
- "rpassword",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "keyward-client"
-version = "0.1.0"
-dependencies = [
- "keyward-ipc",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "keyward-core"
-version = "0.1.0"
-dependencies = [
- "aes",
- "argon2",
- "base64 0.22.1",
- "cbc",
- "clap",
- "hkdf",
- "hmac",
- "libc",
- "pbkdf2",
- "rand 0.8.8",
- "reqwest",
- "rsa",
- "secrecy",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "subtle",
- "tempfile",
- "thiserror",
- "tokio",
- "totp-rs",
- "tracing",
- "url",
- "uuid",
- "zeroize",
-]
-
-[[package]]
-name = "keyward-gtk"
-version = "0.1.0"
-dependencies = [
- "keyward-client",
- "keyward-ipc",
- "keyward-platform",
- "relm4",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "keyward-ipc"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "keyward-platform"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "ksni",
- "oo7",
- "secrecy",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "zeroize",
-]
-
-[[package]]
 name = "ksni"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2594,6 +2476,124 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "sangward-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "libc",
+ "sangward-core",
+ "sangward-ipc",
+ "sangward-platform",
+ "secrecy",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "sangward-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rpassword",
+ "sangward-client",
+ "sangward-ipc",
+ "sangward-platform",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sangward-client"
+version = "0.1.0"
+dependencies = [
+ "sangward-ipc",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sangward-core"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "argon2",
+ "base64 0.22.1",
+ "cbc",
+ "clap",
+ "hkdf",
+ "hmac",
+ "libc",
+ "pbkdf2",
+ "rand 0.8.8",
+ "reqwest",
+ "rsa",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "subtle",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "totp-rs",
+ "tracing",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "sangward-gtk"
+version = "0.1.0"
+dependencies = [
+ "relm4",
+ "sangward-client",
+ "sangward-ipc",
+ "sangward-platform",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sangward-ipc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "sangward-platform"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "ksni",
+ "oo7",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "zeroize",
 ]
 
 [[package]]

@@ -1,13 +1,13 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/keyward-core",
-    "crates/keyward-ipc",
-    "crates/keyward-client",
-    "crates/keyward-agent",
-    "crates/keyward-platform",
-    "crates/keyward-cli",
-    "crates/keyward-gtk",
+    "crates/sangward-core",
+    "crates/sangward-ipc",
+    "crates/sangward-client",
+    "crates/sangward-agent",
+    "crates/sangward-platform",
+    "crates/sangward-cli",
+    "crates/sangward-gtk",
 ]
 
 [workspace.package]
@@ -18,10 +18,10 @@ rust-version = "1.93"
 
 [workspace.dependencies]
 # Internal
-keyward-core = { path = "crates/keyward-core" }
-keyward-ipc = { path = "crates/keyward-ipc" }
-keyward-client = { path = "crates/keyward-client" }
-keyward-platform = { path = "crates/keyward-platform" }
+sangward-core = { path = "crates/sangward-core" }
+sangward-ipc = { path = "crates/sangward-ipc" }
+sangward-client = { path = "crates/sangward-client" }
+sangward-platform = { path = "crates/sangward-platform" }
 
 # Serialization
 serde = { version = "=1.0.229", features = ["derive"] }

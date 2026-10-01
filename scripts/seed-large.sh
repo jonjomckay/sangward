@@ -3,25 +3,25 @@
 #
 # Items are generated as a Bitwarden JSON export and imported with the
 # official `bw import`, so they are encrypted by Bitwarden's client, not ours.
-# A third user (PBKDF2) holds them; its details are appended to $KW_FIXTURES.
+# A third user (PBKDF2) holds them; its details are appended to $SW_FIXTURES.
 set -euo pipefail
 
-: "${KW_VW_URL:?run inside the devenv shell}" "${KW_CA_CERT:?}" "${KW_FIXTURES:?}"
-: "${KW_TEST_USER3_EMAIL:?}" "${KW_TEST_USER3_PASSWORD:?}" "${KW_LARGE_VAULT_ITEMS:?}"
-[[ -f "$KW_FIXTURES" ]] || { echo "seed-large: run 'just seed' first" >&2; exit 1; }
+: "${SW_VW_URL:?run inside the devenv shell}" "${SW_CA_CERT:?}" "${SW_FIXTURES:?}"
+: "${SW_TEST_USER3_EMAIL:?}" "${SW_TEST_USER3_PASSWORD:?}" "${SW_LARGE_VAULT_ITEMS:?}"
+[[ -f "$SW_FIXTURES" ]] || { echo "seed-large: run 'just seed' first" >&2; exit 1; }
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cargo build -q -p keyward-core --features test-support --bin keyward-testkit
-TK="$ROOT/target/debug/keyward-testkit"
-export SSL_CERT_FILE="$KW_CA_CERT" NODE_EXTRA_CA_CERTS="$KW_CA_CERT" BW_NOINTERACTION=true NODE_NO_WARNINGS=1
+cargo build -q -p sangward-core --features test-support --bin sangward-testkit
+TK="$ROOT/target/debug/sangward-testkit"
+export SSL_CERT_FILE="$SW_CA_CERT" NODE_EXTRA_CA_CERTS="$SW_CA_CERT" BW_NOINTERACTION=true NODE_NO_WARNINGS=1
 
-work="$(mktemp -d -t keyward-seed-large.XXXXXX)"
+work="$(mktemp -d -t sangward-seed-large.XXXXXX)"
 trap 'rm -rf -- "$work"' EXIT
-n="$KW_LARGE_VAULT_ITEMS"
-export KW_SEED_PW="$KW_TEST_USER3_PASSWORD"
+n="$SW_LARGE_VAULT_ITEMS"
+export SW_SEED_PW="$SW_TEST_USER3_PASSWORD"
 
-echo "seed-large: registering $KW_TEST_USER3_EMAIL and importing $n items via bw"
-"$TK" register --email "$KW_TEST_USER3_EMAIL" --password-env KW_SEED_PW --kdf pbkdf2
+echo "seed-large: registering $SW_TEST_USER3_EMAIL and importing $n items via bw"
+"$TK" register --email "$SW_TEST_USER3_EMAIL" --password-env SW_SEED_PW --kdf pbkdf2
 
 # Deterministic, varied items: every 10th is a secure note, every 7th has TOTP,
 # names mix ASCII and unicode so search has something to chew on.
@@ -39,8 +39,8 @@ jq -n --argjson n "$n" '
 
 export BITWARDENCLI_APPDATA_DIR="$work/bw"
 mkdir -p "$BITWARDENCLI_APPDATA_DIR"
-bw config server "$KW_VW_URL" >/dev/null
-BW_SESSION="$(bw login "$KW_TEST_USER3_EMAIL" --passwordenv KW_SEED_PW --raw)"
+bw config server "$SW_VW_URL" >/dev/null
+BW_SESSION="$(bw login "$SW_TEST_USER3_EMAIL" --passwordenv SW_SEED_PW --raw)"
 export BW_SESSION
 bw import bitwardenjson "$work/export.json" >/dev/null
 count="$(bw list items | jq length)"
@@ -48,8 +48,8 @@ bw logout >/dev/null 2>&1 || true
 [[ "$count" == "$n" ]] || { echo "seed-large: bw reports $count items, expected $n" >&2; exit 1; }
 
 tmp="$(mktemp)"
-jq --arg email "$KW_TEST_USER3_EMAIL" --argjson n "$n" \
-  '.large = {email: $email, password_env: "KW_TEST_USER3_PASSWORD", items: $n,
+jq --arg email "$SW_TEST_USER3_EMAIL" --argjson n "$n" \
+  '.large = {email: $email, password_env: "SW_TEST_USER3_PASSWORD", items: $n,
              sample: {name: "Site 4242 charlie juliett", username: "user4242@example.test", password: "pw-4242-charlie"}}' \
-  "$KW_FIXTURES" >"$tmp" && mv "$tmp" "$KW_FIXTURES" && chmod 600 "$KW_FIXTURES"
+  "$SW_FIXTURES" >"$tmp" && mv "$tmp" "$SW_FIXTURES" && chmod 600 "$SW_FIXTURES"
 echo "seed-large: imported $count items"

@@ -1,0 +1,25 @@
+[package]
+name = "sangward-cli"
+description = "sangward command-line frontend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sangward"
+path = "src/main.rs"
+
+[dependencies]
+sangward-ipc.workspace = true
+sangward-client.workspace = true
+sangward-platform.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+rpassword.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

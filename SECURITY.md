@@ -1,6 +1,6 @@
 # Security notes and known limitations
 
-keyward is an MVP. The design is in README.md ("Security model"). This file
+Sangward is an MVP. The design is in DEVELOPMENT.md ("Security model"). This file
 lists what it does **not** protect against.
 
 ## Memory
@@ -33,7 +33,7 @@ lists what it does **not** protect against.
 - `x-kde-passwordManagerHint: secret` is honoured by Klipper and some other
   managers; others may still record the entry.
 - Auto-clear happens only while the owning process runs. The GUI clears on
-  quit and lock. `keyward copy` stays in the foreground until the timer fires;
+  quit and lock. `sangward copy` stays in the foreground until the timer fires;
   if you kill it, the clipboard owner dies too, which on most compositors
   clears the selection anyway.
 - The "still ours" check compares provider identity (GTK) or contents

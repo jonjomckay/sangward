@@ -8,18 +8,18 @@ Judgement calls made while building the MVP, roughly in order of impact.
   any non-`https://` server (`InsecureUrlNotAllowedError`; plain http is
   allowed only in dev builds). `harness-up` therefore generates a throwaway CA
   and a localhost cert with `openssl` (declared in `devenv.nix`) and starts
-  Vaultwarden with `ROCKET_TLS`. `KW_VW_URL` is `https://localhost:8087`. Our
+  Vaultwarden with `ROCKET_TLS`. `SW_VW_URL` is `https://localhost:8087`. Our
   client trusts the CA via `SSL_CERT_FILE` (honoured by
   rustls-platform-verifier on Linux) and bw via `NODE_EXTRA_CA_CERTS`. Plain
   http to loopback is still covered by unit tests.
-- **`keyward-testkit` binary** in `keyward-core`, behind
+- **`sangward-testkit` binary** in `sangward-core`, behind
   `required-features = ["test-support"]`. It wraps the test-only `register`,
   `enable-totp`, `create-org`, `dump-sync` and `totp` helpers so the shell
   scripts can call them. It is never built into normal binaries. Passwords
   reach it through env-var names, never argv.
 - **Vectors.** `seed` captures bw-encrypted data plus the expected plaintext
   into `target/vectors/`. `just test` uses those fresh captures, and
-  committed copies in `crates/keyward-core/tests/vectors/` keep plain
+  committed copies in `crates/sangward-core/tests/vectors/` keep plain
   `cargo test` meaningful without a server. `just capture-vectors` refreshes
   them. The vectors contain only throwaway harness credentials.
 - **Per-cipher keys.** bw 2026.8 against Vaultwarden 1.37 does not emit
@@ -45,14 +45,14 @@ Judgement calls made while building the MVP, roughly in order of impact.
   thread) against a real agent and Vaultwarden, not a fake IPC server. That
   way the timings include real decryption. The stall meter is a 16 ms
   `timeout_add_local` heartbeat, and the worst gap must stay under
-  `KW_UI_MAX_STALL_MS` (150 ms, release build under Xvfb). AT-SPI (dogtail)
+  `SW_UI_MAX_STALL_MS` (150 ms, release build under Xvfb). AT-SPI (dogtail)
   and NixOS VM tests were considered. AT-SPI adds Python and a11y-bus
   flakiness. A VM test would be the right tool for tray, Secret Service and
   real clipboard managers, but it needs KVM and is too slow for `just check`.
 - **Large vault**: 5000 items generated as a Bitwarden JSON export and loaded
   with `bw import` (~18 s), so they're encrypted by the official client.
 - **Vault list** is a virtualized `gtk::ListView` over a `gio::ListStore`.
-  Filtering goes through a `CustomFilter` calling `keyward_client::matches`.
+  Filtering goes through a `CustomFilter` calling `sangward_client::matches`.
   The store is repopulated only when `VaultModel::generation()` changes.
   The old `ListBox` built one `AdwActionRow` per item on every update, which
   froze the UI for 1.6 s with 5000 items.
@@ -89,7 +89,7 @@ Judgement calls made while building the MVP, roughly in order of impact.
 - One request per connection by default; the server also accepts several
   frames per connection. JSON with a 4-byte big-endian length prefix and a
   16 MiB cap.
-- `keyward-ipc::Sensitive` is a dependency-free secret string (redacted
+- `sangward-ipc::Sensitive` is a dependency-free secret string (redacted
   `Debug`, volatile wipe on drop), so the IPC crate stays serde + tokio only.
 - One account per agent. Logging in again replaces the cached account.
 - The keychain entry is a single Secret Service item per (server, email)
@@ -111,7 +111,7 @@ Judgement calls made while building the MVP, roughly in order of impact.
   dies with its owner process.
 - Whether the agent keeps running after the GUI quits is a setting
   (`keep_agent_running`, default false = lock and stop), stored in
-  `$XDG_CONFIG_HOME/keyward/settings.json` by `keyward-client::Settings`, so
+  `$XDG_CONFIG_HOME/sangward/settings.json` by `sangward-client::Settings`, so
   every frontend shares it.
 - Without a tray (no StatusNotifierWatcher), closing the window quits instead
   of hiding, so the app can't become unreachable.
