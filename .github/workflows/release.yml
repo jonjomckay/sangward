@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+# Never run two releases for the same tag at once, and never cancel one that is
+# already publishing.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build x86_64-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL
+
+      # ubuntu-24.04 is the oldest environment meeting the README minimum
+      # (GTK 4.14 / libadwaita 1.5) and keeps the glibc floor low, so the
+      # tarball runs on current distros. Nix-built binaries would carry
+      # /nix/store RPATHs and a newer glibc instead.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev pkg-config
+
+      # Reads rust-toolchain.toml, so the release uses the same compiler as the
+      # dev shell. Bundles Swatinem/rust-cache; empty build-warnings avoids
+      # forcing cargo warnings to errors on a release build.
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          build-warnings: ""
+          cache-key: release
+          cache-on-failure: true
+
+      # The tag is the source of truth for the version; a mismatch means the
+      # tag was cut before bumping the workspace, which we should not ship.
+      - name: Check tag matches Cargo.toml
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          manifest="$(sed -n '/^\[workspace.package\]/,/^\[/p' Cargo.toml \
+            | sed -n 's/^version = "\(.*\)"/\1/p' | head -n1)"
+          echo "tag=$RELEASE_TAG version=$version workspace=$manifest"
+          [ "$version" = "$manifest" ] || {
+            echo "::error::tag '$RELEASE_TAG' does not match workspace version '$manifest'"
+            exit 1
+          }
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          name="sangward-${version}-x86_64-linux"
+          staging="$(mktemp -d)"
+          install -m755 target/release/sangward       "$staging/sangward"
+          install -m755 target/release/sangward-gtk   "$staging/sangward-gtk"
+          install -m755 target/release/sangward-agent "$staging/sangward-agent"
+          install -m644 README.md                     "$staging/README.md"
+          strip "$staging/sangward" "$staging/sangward-gtk" "$staging/sangward-agent"
+          tar -C "$staging" -czf "${name}.tar.gz" \
+            README.md sangward sangward-gtk sangward-agent
+          sha256sum "${name}.tar.gz" > SHA256SUMS
+          ls -l "${name}.tar.gz" SHA256SUMS
+
+      # Keep the artifacts even if publishing the release fails, so a rerun
+      # does not have to rebuild.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: |
+            sangward-*.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: |
+            sangward-*.tar.gz
+            SHA256SUMS
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -47,7 +47,16 @@ gtk-smoke:
 gtk-ui *scenario:
     scripts/gtk-ui-test.sh {{scenario}}
 
+# Mirror Cargo.toml's [workspace.package] rust-version into rust-toolchain.toml.
+sync-toolchain:
+    scripts/sync-toolchain.sh
+
+# Fail if rust-toolchain.toml's channel has drifted from Cargo.toml.
+check-toolchain:
+    scripts/sync-toolchain.sh --check
+
 lint:
+    scripts/sync-toolchain.sh --check
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     cargo fmt --all --check
 

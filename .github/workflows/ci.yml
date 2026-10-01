@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A push to a PR cancels the previous run for that PR, so we never pay for
+# superseded builds.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Incremental artifacts bloat the cache and are useless on a clean runner.
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  # Cheap, dependency-free fast feedback: formatting and toolchain-file drift
+  # surface in seconds instead of at the end of the full pipeline.
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      # Reads rust-toolchain.toml; the toolchain file already lists rustfmt.
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: rust-toolchain.toml matches Cargo.toml
+        run: ./scripts/sync-toolchain.sh --check
+
+  # The whole unattended pipeline: clippy, unit/integration tests, Vaultwarden
+  # e2e, GTK smoke and in-process UI tests, all through `just check`. The
+  # toolchain, Vaultwarden, the official bw CLI, Xvfb and dbus come from
+  # devenv.nix, so CI matches the dev shell exactly.
+  check:
+    name: just check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # GTK + Rust + Vaultwarden + Xvfb is a lot of packages; the stock runner
+      # image is tight on disk.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Public read-only cache for devenv's own tooling. Every dependency below
+      # it comes from cache.nixos.org. To also cache this repo's built shell,
+      # create a Cachix cache and add its name + CACHIX_AUTH_TOKEN here.
+      - uses: cachix/cachix-action@v17
+        with:
+          name: devenv
+
+      - name: Install devenv
+        run: |
+          nix profile add nixpkgs#devenv
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
+
+      # Cargo registry + build output. The key includes devenv.lock as well as
+      # Cargo.lock: a nixpkgs bump changes the compiler and would otherwise
+      # restore artifacts cargo can never reuse.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('Cargo.lock', 'devenv.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-
+
+      - name: just check
+        run: devenv shell -- just check
+
+      # e2e/GTK logs on failure; the scripts grep secrets out of them already.
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: check-logs
+          path: |
+            target/e2e-logs/**
+            target/*.log
+          if-no-files-found: ignore
+          retention-days: 7

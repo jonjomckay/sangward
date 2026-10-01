@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Keep the workflow actions current. One grouped PR per week keeps the noise
+  # down; the pinned exact versions in Cargo.toml are maintained by hand.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -8,6 +8,10 @@ and security notes are in [SECURITY.md](SECURITY.md).
 
 All tools come from devenv (`devenv.nix`): Rust, GTK/libadwaita, Vaultwarden,
 the official `bw` CLI, Xvfb and `just`. Don't install them any other way.
+The Rust version comes from `rust-toolchain.toml`, which devenv and CI both
+read. Its `channel` is generated from `rust-version` in the root `Cargo.toml`
+(the single source of truth) by `just sync-toolchain`; `just check` and CI fail
+if the two drift.
 
 ```sh
 cargo build
@@ -141,6 +145,37 @@ our crypto.
 Harness settings (ports, test users, budgets) are the `SW_*` variables in
 `devenv.nix`. The test passwords and admin token there are throwaway values
 for the local harness only.
+
+## Continuous integration and releases
+
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
+
+- `rustfmt` and a `rust-toolchain.toml` vs `Cargo.toml` drift check fail fast,
+  with no Nix setup.
+- `just check` runs the whole pipeline inside the devenv shell
+  (`devenv shell -- just check`), so CI uses the exact toolchain, Vaultwarden,
+  official `bw` CLI, Xvfb and dbus from `devenv.nix`.
+
+Cargo's registry and `target/` are cached with a key built from `Cargo.lock`
+and `devenv.lock`; Nix dependencies come from cache.nixos.org and the public
+`devenv` Cachix cache. To also cache this repo's built shell, create a Cachix
+cache and add its name plus a `CACHIX_AUTH_TOKEN` secret to the workflow.
+
+`.github/workflows/release.yml` runs on `v*` tags (or manually from the Actions
+tab with a tag) and:
+
+1. builds in a plain `ubuntu-24.04` job, **not** Nix, so the binary links the
+   host glibc and distro GTK instead of `/nix/store`;
+2. checks the tag matches the `[workspace.package]` version;
+3. ships `sangward`, `sangward-gtk` and `sangward-agent` as
+   `sangward-<version>-x86_64-linux.tar.gz`, with a `SHA256SUMS` file.
+
+To cut a release, bump `version` in the root `Cargo.toml`, commit, then push a
+matching tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 ## Adding another frontend
 

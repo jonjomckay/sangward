@@ -1,0 +1,11 @@
+# Single source of truth for the Rust toolchain. Read by:
+#   - rustup (plain `cargo`/`rustc` for contributors),
+#   - devenv via `languages.rust.toolchainFile` in devenv.nix,
+#   - CI via actions-rust-lang/setup-rust-toolchain.
+# `channel` is generated from `rust-version` in the root Cargo.toml by
+# `just sync-toolchain`; `just check` and CI fail if the two drift.
+# `profile` and `components` are maintained by hand here.
+[toolchain]
+channel = "1.93.0"
+profile = "minimal"
+components = ["clippy", "rustfmt", "rust-analyzer"]

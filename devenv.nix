@@ -26,7 +26,9 @@
 
   languages.rust = {
     enable = true;
-    components = [ "rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" ];
+    # Reads rust-toolchain.toml, so the dev shell, CI and releases all use the
+    # same pinned version. Do not also set channel/version here.
+    toolchainFile = ./rust-toolchain.toml;
   };
 
   # Test-harness configuration. The justfile reads these; nothing is hard-coded there.

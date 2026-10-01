@@ -2,6 +2,12 @@
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
+  # Required by languages.rust.toolchainFile (rust-toolchain.toml).
+  rust-overlay:
+    url: github:oxalica/rust-overlay
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
 
 # If you're using non-OSS software, you can set allow_unfree to true.
 # allow_unfree: true
