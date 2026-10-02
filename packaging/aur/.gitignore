@@ -1,0 +1,7 @@
+# makepkg build artifacts. These are unanchored on purpose so they match the
+# per-package directories under packaging/aur/*/ as well.
+src/
+pkg/
+*.pkg.tar.*
+*.tar.gz
+*.tar.zst

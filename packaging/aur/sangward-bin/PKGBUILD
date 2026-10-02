@@ -1,0 +1,36 @@
+# Maintainer: Jonjo McKay <jonjomckay@users.noreply.github.com>
+pkgname=sangward-bin
+pkgver=0.1.1
+pkgrel=1
+pkgdesc='Fast, native desktop client for self-hosted Bitwarden and Vaultwarden vaults'
+arch=('x86_64')
+url='https://github.com/jonjomckay/sangward'
+license=('GPL-3.0-or-later')
+depends=('gtk4' 'libadwaita')
+optdepends=(
+  'gnome-keyring: store the sign-in token in the system keyring'
+  'kwallet: store the sign-in token in KWallet'
+  'keepassxc: store the sign-in token in KeePassXC'
+  'gnome-shell-extension-appindicator: tray icon on GNOME'
+)
+provides=('sangward')
+conflicts=('sangward' 'sangward-git')
+options=('!debug')
+source=(
+  "sangward-$pkgver-x86_64-linux.tar.gz::https://github.com/jonjomckay/sangward/releases/download/v$pkgver/sangward-$pkgver-x86_64-linux.tar.gz"
+)
+sha256sums=('bba0085d38e263440156ad631164d00ceae723d234ed70c4bd9c46ddf4c239cc')
+
+package() {
+  install -Dm755 "$srcdir/sangward"       "$pkgdir/usr/bin/sangward"
+  install -Dm755 "$srcdir/sangward-gtk"   "$pkgdir/usr/bin/sangward-gtk"
+  install -Dm755 "$srcdir/sangward-agent" "$pkgdir/usr/bin/sangward-agent"
+
+  # Shipped inside the release tarball.
+  install -Dm644 "$srcdir/dev.sangward.Sangward.desktop" \
+    "$pkgdir/usr/share/applications/dev.sangward.Sangward.desktop"
+  install -Dm644 "$srcdir/dev.sangward.Sangward.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.sangward.Sangward.svg"
+
+  install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

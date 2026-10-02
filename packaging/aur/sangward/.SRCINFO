@@ -1,0 +1,25 @@
+pkgbase = sangward
+	pkgdesc = Fast, native desktop client for self-hosted Bitwarden and Vaultwarden vaults
+	pkgver = 0.1.1
+	pkgrel = 1
+	url = https://github.com/jonjomckay/sangward
+	arch = x86_64
+	arch = aarch64
+	license = GPL-3.0-or-later
+	makedepends = cargo
+	makedepends = pkgconf
+	depends = gtk4
+	depends = libadwaita
+	optdepends = gnome-keyring: store the sign-in token in the system keyring
+	optdepends = kwallet: store the sign-in token in KWallet
+	optdepends = keepassxc: store the sign-in token in KeePassXC
+	optdepends = gnome-shell-extension-appindicator: tray icon on GNOME
+	provides = sangward
+	conflicts = sangward-bin
+	conflicts = sangward-git
+	options = !debug
+	options = !lto
+	source = sangward-0.1.1.tar.gz::https://github.com/jonjomckay/sangward/archive/refs/tags/v0.1.1.tar.gz
+	sha256sums = ac5ee547562e610e6922e93d3ac420f63825597aa3ff8bdbda80d9bc4b089ac8
+
+pkgname = sangward

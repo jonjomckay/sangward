@@ -1,0 +1,53 @@
+# Maintainer: Jonjo McKay <jonjomckay@users.noreply.github.com>
+pkgname=sangward
+pkgver=0.1.1
+pkgrel=1
+pkgdesc='Fast, native desktop client for self-hosted Bitwarden and Vaultwarden vaults'
+arch=('x86_64' 'aarch64')
+url='https://github.com/jonjomckay/sangward'
+license=('GPL-3.0-or-later')
+depends=('gtk4' 'libadwaita')
+makedepends=('cargo' 'pkgconf')
+optdepends=(
+  'gnome-keyring: store the sign-in token in the system keyring'
+  'kwallet: store the sign-in token in KWallet'
+  'keepassxc: store the sign-in token in KeePassXC'
+  'gnome-shell-extension-appindicator: tray icon on GNOME'
+)
+provides=('sangward')
+conflicts=('sangward-bin' 'sangward-git')
+# rustls links aws-lc-sys, which is C. makepkg's global `lto` option would
+# compile it with -flto and then fail to resolve its symbols at link time, so
+# opt out; the upstream release profile does not enable LTO either.
+options=('!debug' '!lto')
+source=(
+  "$pkgname-$pkgver.tar.gz::https://github.com/jonjomckay/sangward/archive/refs/tags/v$pkgver.tar.gz"
+)
+sha256sums=('ac5ee547562e610e6922e93d3ac420f63825597aa3ff8bdbda80d9bc4b089ac8')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  cargo fetch --locked
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+
+  install -Dm755 "target/release/sangward"       "$pkgdir/usr/bin/sangward"
+  install -Dm755 "target/release/sangward-gtk"   "$pkgdir/usr/bin/sangward-gtk"
+  install -Dm755 "target/release/sangward-agent" "$pkgdir/usr/bin/sangward-agent"
+
+  # Shipped by the source archive from packaging/ in the upstream repo.
+  install -Dm644 'packaging/dev.sangward.Sangward.desktop' \
+    "$pkgdir/usr/share/applications/dev.sangward.Sangward.desktop"
+  install -Dm644 'packaging/dev.sangward.Sangward.svg' \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.sangward.Sangward.svg"
+
+  install -Dm644 'README.md' "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
