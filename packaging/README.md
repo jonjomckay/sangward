@@ -66,5 +66,9 @@ after a release is published.
 
 1. Bump `version` in the root `Cargo.toml`, commit, and push a matching tag.
 2. Wait for the Release workflow to publish the tarball.
-3. Bump `pkgver` in both PKGBUILDs, run `updpkgsums`, regenerate `.SRCINFO`,
-   and push to the AUR.
+3. Bump `pkgver` in both PKGBUILDs (reset `pkgrel` to 1), then in each of
+   `aur/sangward/` and `aur/sangward-bin/` run `updpkgsums` and
+   `makepkg --printsrcinfo > .SRCINFO`.
+4. Commit the four changed files (both PKGBUILDs and both `.SRCINFO`s) to this
+   repository, then push the `PKGBUILD` and `.SRCINFO` to each AUR package (see
+   above).

@@ -193,6 +193,23 @@ matching tag:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
+Once the workflow has published the tarball, the release is not finished until
+the AUR packages are updated. Bump `pkgver` (and reset `pkgrel` to 1) in both
+`packaging/aur/sangward/PKGBUILD` and `packaging/aur/sangward-bin/PKGBUILD`,
+then refresh their checksums and metadata and push to the AUR:
+
+```sh
+for p in sangward sangward-bin; do
+  ( cd "packaging/aur/$p" && updpkgsums && makepkg --printsrcinfo > .SRCINFO )
+done
+```
+
+`updpkgsums` downloads the published tarballs, so this needs the release to be
+live first. Commit the four changed files (`PKGBUILD` and `.SRCINFO` in each
+package) to this repo, then clone the AUR git repos and push the `PKGBUILD` and
+`.SRCINFO` there. See [packaging/README.md](packaging/README.md#publishing-to-the-aur)
+for the AUR push details.
+
 ## Adding another frontend
 
 1. Create `crates/sangward-<toolkit>` that depends on `sangward-ipc`,

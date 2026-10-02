@@ -1,6 +1,6 @@
 # Maintainer: Jonjo McKay <jonjomckay@users.noreply.github.com>
 pkgname=sangward-bin
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc='Fast, native desktop client for self-hosted Bitwarden and Vaultwarden vaults'
 arch=('x86_64')
@@ -19,7 +19,7 @@ options=('!debug')
 source=(
   "sangward-$pkgver-x86_64-linux.tar.gz::https://github.com/jonjomckay/sangward/releases/download/v$pkgver/sangward-$pkgver-x86_64-linux.tar.gz"
 )
-sha256sums=('bba0085d38e263440156ad631164d00ceae723d234ed70c4bd9c46ddf4c239cc')
+sha256sums=('cb54a3d539ad86c2ce3fadedd5f25baa483515d22b359c7d5ed424de30bb4121')
 
 package() {
   install -Dm755 "$srcdir/sangward"       "$pkgdir/usr/bin/sangward"

@@ -1,6 +1,6 @@
 pkgbase = sangward
 	pkgdesc = Fast, native desktop client for self-hosted Bitwarden and Vaultwarden vaults
-	pkgver = 0.1.1
+	pkgver = 0.1.2
 	pkgrel = 1
 	url = https://github.com/jonjomckay/sangward
 	arch = x86_64
@@ -19,7 +19,7 @@ pkgbase = sangward
 	conflicts = sangward-git
 	options = !debug
 	options = !lto
-	source = sangward-0.1.1.tar.gz::https://github.com/jonjomckay/sangward/archive/refs/tags/v0.1.1.tar.gz
-	sha256sums = ac5ee547562e610e6922e93d3ac420f63825597aa3ff8bdbda80d9bc4b089ac8
+	source = sangward-0.1.2.tar.gz::https://github.com/jonjomckay/sangward/archive/refs/tags/v0.1.2.tar.gz
+	sha256sums = c801c9061918caa035acb567dbce1b129978cd5918cfbab5be38c6cb86e5483f
 
 pkgname = sangward
