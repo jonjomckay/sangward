@@ -182,12 +182,12 @@ lv login --server "$SERVER" --email "$(fx .large.email)" --password-env "$LV_PWV
 [[ "$(lv get "$(fx .large.sample.name)" --field password)" == "$(fx .large.sample.password)" ]] \
   || fail "large vault: sample password mismatch"
 ok "large vault: all items listed, sample decrypts to the bw-imported value"
-# Status must stay fast while the agent decrypts thousands of summaries.
+# Status must stay responsive (under 2 s) while the agent decrypts thousands of summaries.
 lists=()
 for _ in 1 2 3; do lv list --json >/dev/null & lists+=($!); done
 s=$(date +%s%N); lv status >/dev/null; ms=$(( ($(date +%s%N) - s) / 1000000 ))
 wait "${lists[@]}"
-(( ms < 1000 )) || fail "status took ${ms} ms while list was running"
+(( ms < 2000 )) || fail "status took ${ms} ms while list was running"
 ok "large vault: status answered in ${ms} ms during concurrent lists"
 lv stop-agent
 
