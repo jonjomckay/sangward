@@ -182,7 +182,8 @@ tab with a tag) and:
 1. builds in a plain `ubuntu-24.04` job, **not** Nix, so the binary links the
    host glibc and distro GTK instead of `/nix/store`;
 2. checks the tag matches the `[workspace.package]` version;
-3. ships `sangward`, `sangward-gtk` and `sangward-agent` as
+3. ships `sangward`, `sangward-gtk` and `sangward-agent`, plus the desktop
+   entry and icon from `packaging/`, as
    `sangward-<version>-x86_64-linux.tar.gz`, with a `SHA256SUMS` file.
 
 To cut a release, bump `version` in the root `Cargo.toml`, commit, then push a

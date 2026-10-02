@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Sangward
+GenericName=Password Manager
+Comment=Access your self-hosted Bitwarden or Vaultwarden vault
+Exec=sangward-gtk
+Icon=dev.sangward.Sangward
+Terminal=false
+Categories=Utility;Security;
+Keywords=password;manager;vault;secrets;totp;bitwarden;vaultwarden;
+StartupNotify=true

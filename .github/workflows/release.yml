@@ -86,9 +86,16 @@ jobs:
           install -m755 target/release/sangward-gtk   "$staging/sangward-gtk"
           install -m755 target/release/sangward-agent "$staging/sangward-agent"
           install -m644 README.md                     "$staging/README.md"
+          # Desktop integration travels with the release so the AUR -bin
+          # recipe does not have to carry its own copies.
+          install -m644 packaging/dev.sangward.Sangward.desktop \
+            "$staging/dev.sangward.Sangward.desktop"
+          install -m644 packaging/dev.sangward.Sangward.svg \
+            "$staging/dev.sangward.Sangward.svg"
           strip "$staging/sangward" "$staging/sangward-gtk" "$staging/sangward-agent"
           tar -C "$staging" -czf "${name}.tar.gz" \
-            README.md sangward sangward-gtk sangward-agent
+            README.md sangward sangward-gtk sangward-agent \
+            dev.sangward.Sangward.desktop dev.sangward.Sangward.svg
           sha256sum "${name}.tar.gz" > SHA256SUMS
           ls -l "${name}.tar.gz" SHA256SUMS
 

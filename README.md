@@ -63,10 +63,18 @@ Rust and the GTK 4/libadwaita development files:
 cargo build --release
 install -Dm755 target/release/sangward-gtk target/release/sangward \
   target/release/sangward-agent -t ~/.local/bin/
+install -Dm644 packaging/dev.sangward.Sangward.desktop \
+  ~/.local/share/applications/dev.sangward.Sangward.desktop
+install -Dm644 packaging/dev.sangward.Sangward.svg \
+  ~/.local/share/icons/hicolor/scalable/apps/dev.sangward.Sangward.svg
+update-desktop-database ~/.local/share/applications
 ```
 
 Keep all three programs in the same directory or on your `PATH`.
 `sangward-gtk` and `sangward` start `sangward-agent` themselves.
+
+Arch Linux packages (AUR recipes for both a source build and the prebuilt
+release) live in [`packaging/`](packaging/).
 
 ## Using the app
 
