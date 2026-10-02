@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-agent"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -2517,7 +2517,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-client"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "sangward-ipc",
  "serde",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aes",
  "argon2",
@@ -2560,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-gtk"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "relm4",
  "sangward-client",
@@ -2573,7 +2573,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-ipc"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2582,7 +2582,7 @@ dependencies = [
 
 [[package]]
 name = "sangward-platform"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arboard",
  "ksni",

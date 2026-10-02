@@ -108,7 +108,7 @@ through it.
 | `SANGWARD_AGENT_BIN` | Agent binary to spawn (default: next to the frontend, then `$PATH`). |
 | `SANGWARD_DATA_DIR` | Cache directory (default `$XDG_DATA_HOME/sangward`). |
 | `SANGWARD_SECRET_STORE` / `--secret-store` | `secret-service` (default) or `memory` (tests). |
-| `SANGWARD_AUTO_LOCK_SECS` | Agent auto-lock timeout (default 900). |
+| `SANGWARD_AUTO_LOCK_SECS` | Agent auto-lock timeout (default 900; a frontend-spawned agent is told to use the saved `auto_lock_secs` setting instead). |
 | `SANGWARD_LOG` | `tracing` filter (agent default `info`, frontends `warn`). |
 | `SANGWARD_AGENT_LOG` | File for a spawned agent's output (default: discarded). |
 | `SANGWARD_GTK_AGENT_ARGS` | Extra args for an agent spawned by the GUI. |
@@ -204,7 +204,10 @@ git tag v0.1.0 && git push origin v0.1.0
 4. Implement `sangward_platform::Clipboard` for your toolkit's clipboard (see
    `sangward-gtk/src/clipboard.rs`), or use `ArboardClipboard`. Schedule clears
    with `sangward_client::AutoClear`.
-5. Use `sangward_platform::KsniTray` and react to `TrayCommand`s from its
+5. Load and save `sangward_client::Settings` for the shared preferences
+   (clipboard auto-clear delay, auto-lock timeout, keep-agent), and call
+   `Controller::set_auto_lock` when the timeout changes.
+6. Use `sangward_platform::KsniTray` and react to `TrayCommand`s from its
    channel.
 
 `sangward-gtk/src/app.rs` is the reference. It's mostly widget construction,

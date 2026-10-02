@@ -113,6 +113,31 @@ Judgement calls made while building the MVP, roughly in order of impact.
   (`keep_agent_running`, default false = lock and stop), stored in
   `$XDG_CONFIG_HOME/sangward/settings.json` by `sangward-client::Settings`, so
   every frontend shares it.
+- **Preferences** use `AdwPreferencesDialog` opened from the menu and `Ctrl+,`
+  (the GNOME HIG pattern), with `AdwComboRow`s of preset durations rather than
+  free-form numbers. The two timeouts live in `Settings` (`clipboard_clear_secs`,
+  `auto_lock_secs`), so CLI and GUI agree; the `sangward auto-lock` command
+  writes the same setting. On startup the GUI pushes the saved timeout to
+  whatever agent is running, and a GUI-spawned agent is launched with it. The
+  combo rows are set once at construction and are not re-synced in
+  `update_view`: the row owns the value while the dialog is open, and echoing
+  settings back into the row created a selection-notify feedback loop.
+- **Autofocus**: when the unlock screen (or the login screen, if an email is
+  saved) first appears, the master-password field is focused. The same happens
+  when the window is reopened from the tray, because GTK otherwise restores
+  focus to whatever was focused when it was hidden. Two details were needed,
+  both found by observing the running app:
+  - Use `WidgetExt::grab_focus`, not `GtkRoot::set_focus`. `AdwEntryRow` and
+    `AdwPasswordEntryRow` are composite rows: their real focusable widget is an
+    inner `GtkText`. `set_focus(row)` records the row as the window's focus
+    widget but never gives the inner entry keyboard focus, so there is no focus
+    ring and typing goes nowhere; `grab_focus` descends into the row like Tab
+    does. Tests assert the focused widget is inside the row and has
+    `has_focus()`, not just that `GtkRoot::focus` names the row.
+  - On Wayland the window is not active when the first render runs (the
+    compositor activates it afterwards), so focus is applied from the window's
+    `notify::is-active` signal if it cannot be applied immediately. `Form`
+    holds a shared `Rc<RefCell<Option<GtkEditable>>>` for this pending target.
 - Without a tray (no StatusNotifierWatcher), closing the window quits instead
   of hiding, so the app can't become unreachable.
 - Relm4 traces component messages with `Debug`. The GTK `Cmd` enum therefore

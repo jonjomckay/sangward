@@ -27,6 +27,15 @@ impl<T: Copy + Eq> AutoClear<T> {
         self.after
     }
 
+    /// Change the delay used for future copies. A pending clear is rescheduled
+    /// to the new delay so a shorter timeout takes effect immediately.
+    pub fn set_after(&mut self, after: Duration) {
+        self.after = after;
+        if let Some((_, at)) = &mut self.pending {
+            *at = Instant::now() + after;
+        }
+    }
+
     /// Register a fresh copy. A newer copy supersedes the previous pending clear:
     /// the clipboard no longer holds the older value anyway.
     pub fn copied(&mut self, token: T, now: Instant) -> Instant {
@@ -85,6 +94,18 @@ mod tests {
         );
         assert_eq!(ac.due(t0 + Duration::from_secs(30)), Some(1));
         assert_eq!(ac.due(t0 + Duration::from_secs(31)), None);
+    }
+
+    #[test]
+    fn set_after_reschedules_a_pending_clear() {
+        let t0 = Instant::now();
+        let mut ac = AutoClear::new(Duration::from_secs(30));
+        ac.copied(1u64, t0);
+        ac.set_after(Duration::from_secs(5));
+        assert_eq!(ac.after(), Duration::from_secs(5));
+        // The pending copy now clears on the shorter schedule.
+        assert_eq!(ac.remaining_secs(Instant::now()), Some(5));
+        assert_eq!(ac.due(Instant::now() + Duration::from_secs(6)), Some(1));
     }
 
     #[test]

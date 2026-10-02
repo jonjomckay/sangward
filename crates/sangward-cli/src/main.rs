@@ -10,7 +10,9 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use sangward_client::spawn::{SpawnOptions, ensure_agent};
-use sangward_client::{Controller, CopyTarget, LoginOutcome, UiError, VaultModel, kind_label};
+use sangward_client::{
+    Controller, CopyTarget, LoginOutcome, Settings, UiError, VaultModel, kind_label,
+};
 use sangward_ipc::{ErrorKind, ItemSummary, LockState, SecretField, Sensitive, ServerConfig};
 
 #[derive(Parser)]
@@ -375,6 +377,13 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Cmd::AutoLock { seconds } => {
             ctl.set_auto_lock(seconds).await?;
+            // Keep the shared setting in step so the GUI does not push an old
+            // value back to the agent on its next launch.
+            let mut settings = Settings::load();
+            settings.auto_lock_secs = seconds;
+            if let Err(e) = settings.save() {
+                eprintln!("sangward: could not save settings: {e}");
+            }
             eprintln!("Auto-lock set to {seconds}s.");
         }
         Cmd::StopAgent => {

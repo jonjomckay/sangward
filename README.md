@@ -33,6 +33,8 @@ Put together, it means roughly "secret, guarded".
 - Show a password on screen only when you ask to.
 - Locks after 15 minutes of inactivity. After that, unlocking needs only your
   master password.
+- **Preferences** (menu, or `Ctrl+,`) change how long copied secrets stay on
+  the clipboard and how long the vault stays unlocked before locking.
 - A tray icon with Open, Lock, Sync and Quit.
 - A full command-line tool, `sangward`, for terminals and scripts.
 - Handles vaults with thousands of items without slowing down.
@@ -86,7 +88,13 @@ release) live in [`packaging/`](packaging/).
    shows the password on screen.
 
 Lock the vault from the padlock button or the tray. The sync button fetches
-changes you've made in other apps.
+changes you've made in other apps. On the login and unlock screens the master
+password field is focused for you, so you can start typing straight away.
+
+**Preferences** (in the menu, or `Ctrl+,`) hold two timeouts: how long a copied
+secret stays on the clipboard before it is cleared, and how long the vault may
+sit idle before it locks itself. Changes apply immediately and are remembered
+for next time.
 
 Closing the window hides Sangward to the tray. If your desktop has no tray,
 closing the window quits instead. Quitting locks your vault and stops the

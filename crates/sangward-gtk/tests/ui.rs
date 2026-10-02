@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use relm4::adw::prelude::*;
 use relm4::prelude::*;
 use relm4::{adw, gtk};
-use sangward_gtk::{App, names};
+use sangward_gtk::{App, Msg, names};
 
 // --------------------------------------------------------------------------
 // Harness
@@ -30,7 +30,7 @@ use sangward_gtk::{App, names};
 
 struct Ui {
     window: adw::ApplicationWindow,
-    _controller: relm4::Controller<App>,
+    controller: relm4::Controller<App>,
     stall: Rc<StallMeter>,
 }
 
@@ -105,6 +105,21 @@ fn find(root: &impl IsA<gtk::Widget>, name: &str) -> Option<gtk::Widget> {
     None
 }
 
+/// Whether `widget` is `ancestor` or inside it.
+fn is_descendant_of(widget: &gtk::Widget, ancestor: &gtk::Widget) -> bool {
+    if widget == ancestor {
+        return true;
+    }
+    let mut p = widget.parent();
+    while let Some(w) = p {
+        if &w == ancestor {
+            return true;
+        }
+        p = w.parent();
+    }
+    false
+}
+
 impl Ui {
     fn launch() -> Self {
         let controller = App::builder().launch(()).detach();
@@ -112,9 +127,20 @@ impl Ui {
         let stall = StallMeter::start();
         Ui {
             window,
-            _controller: controller,
+            controller,
             stall,
         }
+    }
+
+    /// Send a component message (e.g. the tray's Open command).
+    fn send(&self, msg: Msg) {
+        self.controller.sender().send(msg).unwrap();
+    }
+
+    /// Move focus away from `name`, as a user tabbing to another row would.
+    fn focus_widget(&self, name: &str) {
+        self.get::<gtk::Widget>(name).grab_focus();
+        pump_for(Duration::from_millis(50));
     }
 
     fn get<T: IsA<gtk::Widget>>(&self, name: &str) -> T {
@@ -138,6 +164,19 @@ impl Ui {
 
     fn type_into(&self, name: &str, text: &str) {
         self.get::<gtk::Editable>(name).set_text(text);
+    }
+
+    /// Whether keyboard focus is on the entry *inside* `name`. An
+    /// `AdwEntryRow`/`AdwPasswordEntryRow` is a composite whose real focusable
+    /// widget is an inner `GtkText`. Setting focus on the row alone leaves that
+    /// entry unfocused (no cursor, typing goes nowhere), so this requires a
+    /// strict descendant that actually has keyboard focus — not the row itself.
+    fn has_keyboard_focus(&self, name: &str) -> bool {
+        let want = self.get::<gtk::Widget>(name);
+        let Some(focused) = gtk::prelude::RootExt::focus(&self.window) else {
+            return false;
+        };
+        focused != want && focused.has_focus() && is_descendant_of(&focused, &want)
     }
 
     fn click(&self, name: &str) {
@@ -241,6 +280,17 @@ impl Ui {
 fn env(name: &str) -> String {
     std::env::var(name)
         .unwrap_or_else(|_| panic!("{name} not set (run via scripts/gtk-ui-test.sh)"))
+}
+
+/// Write a settings file so the next `App` launch looks like a returning user.
+fn prefill_login(email: &str) {
+    let dir = std::path::PathBuf::from(env("XDG_CONFIG_HOME")).join("sangward");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("settings.json"),
+        format!(r#"{{"email":"{email}"}}"#),
+    )
+    .unwrap();
 }
 
 fn max_stall() -> Duration {
@@ -402,9 +452,69 @@ fn small_vault_flow() {
         "password-manager hint missing: {formats}"
     );
 
+    // Preferences: opening the dialog, changing both timeouts, and having them
+    // persisted (and the auto-lock pushed to the running agent).
+    ui.click(names::SETTINGS);
+    assert!(
+        pump_until(Duration::from_secs(5), || ui
+            .window
+            .visible_dialog()
+            .is_some()),
+        "preferences dialog did not open"
+    );
+    let dialog = ui.window.visible_dialog().expect("visible dialog");
+    let combo = |name: &str| -> adw::ComboRow {
+        find(&dialog, name)
+            .unwrap_or_else(|| panic!("preferences row {name:?} not found"))
+            .downcast::<adw::ComboRow>()
+            .unwrap_or_else(|w| panic!("preferences row {name:?} is {}", w.type_().name()))
+    };
+    combo(names::CLIPBOARD_CLEAR).set_selected(0); // 10 seconds
+    combo(names::AUTO_LOCK).set_selected(1); // 5 minutes
+    let settings_path =
+        std::path::PathBuf::from(env("XDG_CONFIG_HOME")).join("sangward/settings.json");
+    assert!(
+        pump_until(Duration::from_secs(5), || {
+            std::fs::read_to_string(&settings_path).is_ok_and(|s| {
+                s.contains("\"clipboard_clear_secs\": 10") && s.contains("\"auto_lock_secs\": 300")
+            })
+        }),
+        "preferences not persisted: {:?}",
+        std::fs::read_to_string(&settings_path)
+    );
+    // Poll the agent on a worker thread: the main thread owns the GTK loop.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let ctl = sangward_ipc::Client::new(sangward_ipc::default_socket_path());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        for _ in 0..50 {
+            let secs = rt.block_on(ctl.status()).ok().map(|s| s.auto_lock_seconds);
+            if tx.send(secs).is_err() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+    assert!(
+        pump_until(Duration::from_secs(6), || {
+            rx.try_recv().ok().flatten() == Some(300)
+        }),
+        "agent did not apply the new auto-lock timeout"
+    );
+    dialog.close();
+
     // Lock clears the list and the clipboard; unlock with password only.
     ui.click(names::LOCK);
     ui.wait_screen("unlock", Duration::from_secs(10));
+    // The unlock field is focused on show so a returning user can type at once.
+    assert!(
+        pump_until(Duration::from_secs(3), || ui
+            .has_keyboard_focus(names::UNLOCK_PASSWORD)),
+        "unlock password field was not auto-focused"
+    );
     assert_eq!(ui.list_len(), 0, "list not cleared on lock");
     assert!(
         pump_until(Duration::from_secs(2), || clip.content().is_none()),
@@ -512,13 +622,41 @@ fn large_vault_stays_responsive() {
     ui.window.close();
 }
 
+/// A returning user (saved email) lands on the login screen with the master
+/// password field already focused, so they can type without reaching for the mouse.
+fn returning_user_login_autofocus() {
+    prefill_login(&env("SW_TEST_USER1_EMAIL"));
+    let ui = Ui::launch();
+    ui.wait_screen("login", Duration::from_secs(15));
+    assert!(
+        pump_until(Duration::from_secs(3), || ui
+            .has_keyboard_focus(names::PASSWORD)),
+        "master password field was not auto-focused for a returning user"
+    );
+    // Reopening (the tray's Open command) brings focus back to the field even
+    // if the user had tabbed elsewhere before the window was hidden.
+    ui.focus_widget(names::SERVER);
+    assert!(!ui.has_keyboard_focus(names::PASSWORD));
+    ui.send(Msg::ShowWindow);
+    assert!(
+        pump_until(Duration::from_secs(3), || ui
+            .has_keyboard_focus(names::PASSWORD)),
+        "master password field was not re-focused when the window reopened"
+    );
+    ui.window.close();
+}
+
 fn main() {
     // Each scenario gets a fresh agent: the wrapper script points SANGWARD_SOCKET
     // etc. at per-run temp dirs and stops the agent between scenarios.
     let only = std::env::args().nth(1).filter(|a| !a.starts_with('-'));
     gtk::init().expect("gtk init (is DISPLAY set?)");
     adw::init().expect("adw init");
-    let scenarios: [(&str, fn()); 2] = [
+    let scenarios: [(&str, fn()); 3] = [
+        (
+            "returning_user_login_autofocus",
+            returning_user_login_autofocus,
+        ),
         ("small_vault_flow", small_vault_flow),
         ("large_vault_stays_responsive", large_vault_stays_responsive),
     ];

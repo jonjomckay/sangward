@@ -15,7 +15,7 @@ use sangward_ipc::{
 };
 
 pub use clipboard::{AutoClear, DEFAULT_CLEAR_SECS};
-pub use settings::Settings;
+pub use settings::{DEFAULT_AUTO_LOCK_SECS, Settings, format_duration};
 
 /// Frontend-visible application state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

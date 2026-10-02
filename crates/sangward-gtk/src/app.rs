@@ -5,6 +5,8 @@
 //! goes over IPC to `sangward-agent`. A Slint/Qt frontend would replace only
 //! this crate.
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -14,7 +16,7 @@ use relm4::{abstractions::Toaster, adw, gtk, gtk::glib};
 use sangward_client::spawn::{SpawnOptions, ensure_agent};
 use sangward_client::{
     AppState, AutoClear, Controller, CopyTarget, LoginOutcome, Settings, UiError, VaultModel,
-    kind_label,
+    format_duration, kind_label,
 };
 use sangward_ipc::{ItemSummary, SecretField, Sensitive, ServerConfig, StatusInfo};
 use sangward_platform::{Clipboard, CopyToken, KsniTray, Tray, TrayCommand, TrayState};
@@ -37,12 +39,16 @@ pub struct App {
     items_loading: bool,
     /// One-shot: refocus and select the secret entry after a failed submit.
     refocus: bool,
+    /// One-shot: refocus the password field when the window is reopened from
+    /// the tray. `update_view` takes `&self`, hence the cell.
+    refocus_on_show: Cell<bool>,
     /// Revealed password for the selected item (cleared on selection change/lock).
     revealed: Option<Sensitive>,
     /// Pending login (kept for the TOTP step); password wiped after use.
     pending_login: Option<(ServerConfig, String, Sensitive)>,
     clipboard: Option<GdkClipboard>,
     auto_clear: AutoClear<CopyToken>,
+    settings_dialog: adw::PreferencesDialog,
     toaster: Toaster,
     tray: Option<KsniTray>,
     quitting: bool,
@@ -77,6 +83,12 @@ pub enum Msg {
     HideWindow,
     Quit,
     SetKeepAgent(bool),
+    /// Open the Preferences dialog (menu row or Ctrl+,).
+    ShowSettings,
+    /// Clipboard auto-clear delay, in seconds.
+    SetClipboardClear(u64),
+    /// Vault inactivity auto-lock timeout, in seconds.
+    SetAutoLock(u64),
     ClipboardTick,
     Tray(TrayCommand),
 }
@@ -94,6 +106,7 @@ pub enum Cmd {
     CopyValue(CopyTarget, Result<Sensitive, UiError>),
     Revealed(Result<Option<Sensitive>, UiError>),
     Status(Result<StatusInfo, UiError>),
+    AutoLockSet(Result<(), UiError>),
     QuitReady,
 }
 
@@ -110,6 +123,7 @@ impl std::fmt::Debug for Cmd {
             Cmd::CopyValue(..) => "CopyValue",
             Cmd::Revealed(_) => "Revealed",
             Cmd::Status(_) => "Status",
+            Cmd::AutoLockSet(_) => "AutoLockSet",
             Cmd::QuitReady => "QuitReady",
         };
         f.write_str(name)
@@ -151,6 +165,9 @@ pub struct Widgets {
     reveal_btn: gtk::Button,
     detail_stack: gtk::Stack,
     sync_spinner: gtk::Spinner,
+    /// Last screen for which the initial password autofocus ran, so returning
+    /// to a screen only refocuses once instead of on every tick.
+    focused_screen: Option<&'static str>,
 }
 
 impl App {
@@ -264,6 +281,10 @@ pub mod names {
     pub const SCREENS: &str = "screens";
     pub const ERROR_LOGIN: &str = "error-login";
     pub const ERROR_UNLOCK: &str = "error-unlock";
+    pub const SETTINGS: &str = "open-settings";
+    pub const SETTINGS_DIALOG: &str = "settings-dialog";
+    pub const CLIPBOARD_CLEAR: &str = "settings-clipboard-clear";
+    pub const AUTO_LOCK: &str = "settings-auto-lock";
 }
 
 /// A submit form (login / TOTP / unlock) whose button shows progress in place.
@@ -276,6 +297,8 @@ struct Form {
     inputs: Vec<gtk::Widget>,
     /// Kept on failure (selected, refocused) and cleared once the form is left.
     secret: gtk::Editable,
+    /// Shared with the app: the widget to focus once the window is active.
+    pending_focus: Rc<RefCell<Option<gtk::Editable>>>,
 }
 
 impl Form {
@@ -284,6 +307,7 @@ impl Form {
         name: &str,
         inputs: Vec<gtk::Widget>,
         secret: gtk::Editable,
+        pending_focus: Rc<RefCell<Option<gtk::Editable>>>,
     ) -> Self {
         let spinner = gtk::Spinner::builder().visible(false).build();
         spinner.set_widget_name(&format!("{name}-spinner"));
@@ -310,6 +334,7 @@ impl Form {
             idle,
             inputs,
             secret,
+            pending_focus,
         }
     }
 
@@ -332,12 +357,66 @@ impl Form {
         if !active && !self.secret.text().is_empty() {
             self.secret.set_text("");
         }
-        if active && focus_secret {
-            self.secret.grab_focus();
-            self.secret.select_region(0, -1);
+        if active && focus_secret && !focus_now(&self.secret) {
+            // The window is not active yet (Wayland activates it after the
+            // first render); the is-active handler in `init` focuses this then.
+            *self.pending_focus.borrow_mut() = Some(self.secret.clone());
         }
     }
 }
+
+/// Focus `secret` if its window is active. Returns `false` when it is not, so
+/// the caller can retry once the window becomes active.
+///
+/// `grab_focus` (not `set_focus`) is what descends into a composite
+/// `AdwEntryRow`/`AdwPasswordEntryRow` and focuses its inner entry — the same
+/// widget Tab reaches. `set_focus` on the row records the row as the window's
+/// focus widget but never gives its `GtkText` keyboard focus, so typing and the
+/// focus ring stay off.
+fn focus_now(secret: &gtk::Editable) -> bool {
+    let Some(window) = secret.root().and_downcast::<gtk::Window>() else {
+        return false;
+    };
+    if !window.is_active() {
+        return false;
+    }
+    secret.grab_focus();
+    secret.select_region(0, -1);
+    true
+}
+
+/// Build a "duration" combo row and the seconds value at each position. The
+/// current value is always present, even when it isn't one of the presets.
+fn timeout_row(
+    title: &str,
+    subtitle: &str,
+    name: &str,
+    presets: &[u64],
+    current: u64,
+) -> (adw::ComboRow, Rc<RefCell<Vec<u64>>>) {
+    let mut secs: Vec<u64> = presets.to_vec();
+    if !secs.contains(&current) {
+        secs.push(current);
+        secs.sort_unstable();
+    }
+    let labels: Vec<String> = secs.iter().map(|s| format_duration(*s)).collect();
+    let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let row = adw::ComboRow::new();
+    row.set_widget_name(name);
+    row.set_title(title);
+    row.set_subtitle(subtitle);
+    row.set_model(Some(&gtk::StringList::new(&label_refs)));
+    if let Some(i) = secs.iter().position(|s| *s == current) {
+        row.set_selected(i as u32);
+    }
+    (row, Rc::new(RefCell::new(secs)))
+}
+
+/// Clipboard clear delays offered in Preferences (seconds). Short enough to
+/// limit exposure, long enough to paste.
+const CLIPBOARD_CLEAR_CHOICES: [u64; 6] = [10, 20, 30, 60, 120, 300];
+/// Vault auto-lock timeouts offered in Preferences (seconds).
+const AUTO_LOCK_CHOICES: [u64; 6] = [60, 300, 600, 900, 1800, 3600];
 
 fn named<W: IsA<gtk::Widget>>(w: W, name: &str) -> W {
     w.set_widget_name(name);
@@ -363,6 +442,21 @@ impl Component for App {
     fn init(_: (), window: Self::Root, sender: ComponentSender<Self>) -> ComponentParts<Self> {
         let settings = Settings::load();
         let toaster = Toaster::default();
+        let pending_focus: Rc<RefCell<Option<gtk::Editable>>> = Rc::new(RefCell::new(None));
+
+        // On Wayland the window becomes active after the first render. Apply a
+        // pending password focus as soon as that happens, otherwise GTK would
+        // keep its own default focus.
+        {
+            let pending_focus = pending_focus.clone();
+            window.connect_is_active_notify(move |w| {
+                if w.is_active()
+                    && let Some(secret) = pending_focus.borrow_mut().take()
+                {
+                    focus_now(&secret);
+                }
+            });
+        }
 
         // ---- Login page ----
         let server = adw::EntryRow::builder()
@@ -392,6 +486,7 @@ impl Component for App {
                 password.clone().upcast(),
             ],
             password.clone().upcast(),
+            pending_focus.clone(),
         );
         let login_btn = login_form.button.clone();
         let login_error = named(error_label(), names::ERROR_LOGIN);
@@ -440,6 +535,7 @@ impl Component for App {
             names::TOTP_SUBMIT,
             vec![totp.clone().upcast(), totp_cancel.clone().upcast()],
             totp.clone().upcast(),
+            pending_focus.clone(),
         );
         let totp_btn = totp_form.button.clone();
         let totp_box = gtk::Box::new(gtk::Orientation::Vertical, 18);
@@ -485,6 +581,7 @@ impl Component for App {
             names::UNLOCK,
             vec![unlock_pw.clone().upcast(), logout_btn.clone().upcast()],
             unlock_pw.clone().upcast(),
+            pending_focus.clone(),
         );
         let unlock_btn = unlock_form.button.clone();
         let unlock_title = adw::StatusPage::builder()
@@ -644,21 +741,35 @@ impl Component for App {
             let s = sender.clone();
             lock_btn.connect_clicked(move |_| s.input(Msg::Lock));
         }
-        let menu_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
-        menu_box.set_margin_top(6);
-        menu_box.set_margin_bottom(6);
-        menu_box.set_margin_start(6);
-        menu_box.set_margin_end(6);
-        menu_box.append(&keep_agent);
+        let settings_btn = gtk::Button::with_label("Preferences");
+        settings_btn.set_widget_name(names::SETTINGS);
+        settings_btn.update_property(&[gtk::accessible::Property::Label("Preferences")]);
         let quit_btn = gtk::Button::with_label("Quit");
         {
             let s = sender.clone();
             quit_btn.connect_clicked(move |_| s.input(Msg::Quit));
         }
+        let menu_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        menu_box.set_margin_top(6);
+        menu_box.set_margin_bottom(6);
+        menu_box.set_margin_start(6);
+        menu_box.set_margin_end(6);
+        menu_box.append(&settings_btn);
+        menu_box.append(&keep_agent);
         menu_box.append(&quit_btn);
+        let menu_popover = gtk::Popover::builder().child(&menu_box).build();
+        {
+            // Close the menu before showing the dialog over the window.
+            let s = sender.clone();
+            let popover = menu_popover.clone();
+            settings_btn.connect_clicked(move |_| {
+                popover.popdown();
+                s.input(Msg::ShowSettings);
+            });
+        }
         let menu_btn = gtk::MenuButton::builder()
             .icon_name("open-menu-symbolic")
-            .popover(&gtk::Popover::builder().child(&menu_box).build())
+            .popover(&menu_popover)
             .tooltip_text("Menu")
             .build();
 
@@ -802,6 +913,59 @@ impl Component for App {
         overlay.set_child(Some(&stack));
         window.set_content(Some(overlay));
 
+        // ---- Preferences ----
+        let (clipboard_row, clipboard_secs) = timeout_row(
+            "Clear clipboard after",
+            "Copied secrets are erased from the clipboard after this delay.",
+            names::CLIPBOARD_CLEAR,
+            &CLIPBOARD_CLEAR_CHOICES,
+            settings.clipboard_clear_secs,
+        );
+        {
+            let s = sender.clone();
+            let secs = clipboard_secs.clone();
+            clipboard_row.connect_selected_notify(move |row| {
+                if let Some(v) = secs.borrow().get(row.selected() as usize) {
+                    s.input(Msg::SetClipboardClear(*v));
+                }
+            });
+        }
+        let (auto_lock_row, auto_lock_secs) = timeout_row(
+            "Lock vault after",
+            "The vault locks after this long without activity.",
+            names::AUTO_LOCK,
+            &AUTO_LOCK_CHOICES,
+            settings.auto_lock_secs,
+        );
+        {
+            let s = sender.clone();
+            let secs = auto_lock_secs.clone();
+            auto_lock_row.connect_selected_notify(move |row| {
+                if let Some(v) = secs.borrow().get(row.selected() as usize) {
+                    s.input(Msg::SetAutoLock(*v));
+                }
+            });
+        }
+        let security_group = adw::PreferencesGroup::new();
+        security_group.set_title("Security");
+        security_group.add(&clipboard_row);
+        security_group.add(&auto_lock_row);
+        let preferences_page = adw::PreferencesPage::new();
+        preferences_page.add(&security_group);
+        let settings_dialog = adw::PreferencesDialog::new();
+        settings_dialog.set_widget_name(names::SETTINGS_DIALOG);
+        settings_dialog.set_title("Preferences");
+        settings_dialog.add(&preferences_page);
+
+        // Ctrl+, opens Preferences, per the GNOME HIG.
+        if let Some(app) = window.application() {
+            let action = gtk::gio::SimpleAction::new("preferences", None);
+            let s = sender.clone();
+            action.connect_activate(move |_, _| s.input(Msg::ShowSettings));
+            app.add_action(&action);
+            app.set_accels_for_action("app.preferences", &["<Control>comma"]);
+        }
+
         // Closing hides to tray (if we have one); Quit lives in the tray/menu.
         {
             let s = sender.clone();
@@ -847,10 +1011,11 @@ impl Component for App {
         }
 
         // Connect to (or spawn) the agent.
+        let spawn_args = agent_args(&settings);
         sender.oneshot_command(async move {
             let socket = sangward_ipc::default_socket_path();
             let opts = SpawnOptions {
-                extra_args: agent_args_from_env(),
+                extra_args: spawn_args,
                 ..Default::default()
             };
             let r = match ensure_agent(&socket, &opts).await {
@@ -863,19 +1028,22 @@ impl Component for App {
             Cmd::Connected(r)
         });
 
+        let auto_clear = AutoClear::new(Duration::from_secs(settings.clipboard_clear_secs));
         let model = App {
             state: AppState::Connecting,
             ctl: None,
-            auto_clear: AutoClear::new(Duration::from_secs(settings.clipboard_clear_secs)),
             settings,
             vault: VaultModel::default(),
             error: None,
             busy: None,
             items_loading: false,
             refocus: false,
+            refocus_on_show: Cell::new(false),
             revealed: None,
             pending_login: None,
             clipboard: GdkClipboard::default_display(),
+            auto_clear,
+            settings_dialog,
             toaster,
             tray,
             quitting: false,
@@ -909,6 +1077,7 @@ impl Component for App {
             reveal_btn,
             detail_stack,
             sync_spinner,
+            focused_screen: None,
         };
         window.present();
         ComponentParts { model, widgets }
@@ -1026,6 +1195,8 @@ impl Component for App {
             Msg::ShowWindow | Msg::Tray(TrayCommand::Open) => {
                 root.set_visible(true);
                 root.present();
+                // Coming back on a password screen should be ready to type.
+                self.refocus_on_show.set(true);
                 // Refresh state: the agent may have auto-locked while hidden.
                 sender.oneshot_command(async move { Cmd::Status(ctl.status().await) });
             }
@@ -1056,6 +1227,25 @@ impl Component for App {
                 self.settings.keep_agent_running = v;
                 let _ = self.settings.save();
             }
+            Msg::ShowSettings => self.settings_dialog.present(Some(root)),
+            Msg::SetClipboardClear(secs) => {
+                if secs == 0 {
+                    return;
+                }
+                self.settings.clipboard_clear_secs = secs;
+                self.auto_clear.set_after(Duration::from_secs(secs));
+                let _ = self.settings.save();
+            }
+            Msg::SetAutoLock(secs) => {
+                if secs == 0 {
+                    return;
+                }
+                self.settings.auto_lock_secs = secs;
+                let _ = self.settings.save();
+                sender.oneshot_command(
+                    async move { Cmd::AutoLockSet(ctl.set_auto_lock(secs).await) },
+                );
+            }
             Msg::ClipboardTick => {
                 if let Some(tok) = self.auto_clear.due(Instant::now())
                     && let Some(cb) = self.clipboard.as_mut()
@@ -1074,8 +1264,17 @@ impl Component for App {
         self.refocus = false;
         match msg {
             Cmd::Connected(Ok((ctl, status))) => {
-                self.ctl = Some(ctl);
+                self.ctl = Some(ctl.clone());
                 self.apply_status(&status, &sender);
+                // An agent that was already running (Keep agent running, or a
+                // systemd unit) may not have our saved timeout; make it match
+                // so the Preferences value is the one that applies.
+                let want = self.settings.auto_lock_secs;
+                if want > 0 && status.auto_lock_seconds != want {
+                    sender.oneshot_command(async move {
+                        Cmd::AutoLockSet(ctl.set_auto_lock(want).await)
+                    });
+                }
             }
             Cmd::Connected(Err(e)) => {
                 tracing::error!("cannot reach agent: {e}");
@@ -1084,6 +1283,8 @@ impl Component for App {
             }
             Cmd::Status(Ok(s)) => self.apply_status(&s, &sender),
             Cmd::Status(Err(e)) => self.fail(e),
+            Cmd::AutoLockSet(Ok(())) => {}
+            Cmd::AutoLockSet(Err(e)) => self.fail(e),
             Cmd::LoginDone(Ok(LoginOutcome::Success)) | Cmd::UnlockDone(Ok(())) => {
                 self.pending_login = None;
                 // Stay on the submitting screen with its spinner until the item
@@ -1185,9 +1386,26 @@ impl Component for App {
         w.stack.set_visible_child_name(screen);
         let busy = self.busy.map(|b| b.text);
         let refocus = self.refocus;
-        w.login_form.render(busy, screen == "login", refocus);
+        // Focus the master-password field when a password screen first appears
+        // (or the window is reopened from the tray), so a returning user can
+        // start typing without reaching for the mouse. The unlock screen always
+        // implies a previous login; the login screen only when we know the email.
+        let on_password_screen =
+            screen == "unlock" || (screen == "login" && !self.settings.email.is_empty());
+        let autofocus = on_password_screen
+            && (self.refocus_on_show.replace(false) || w.focused_screen != Some(screen));
+        w.login_form.render(
+            busy,
+            screen == "login",
+            refocus || (autofocus && screen == "login"),
+        );
         w.totp_form.render(busy, screen == "totp", refocus);
-        w.unlock_form.render(busy, screen == "unlock", refocus);
+        w.unlock_form.render(
+            busy,
+            screen == "unlock",
+            refocus || (autofocus && screen == "unlock"),
+        );
+        w.focused_screen = Some(screen);
         let show_err = |l: &gtk::Label, on: bool| {
             l.set_visible(on && self.error.is_some());
             l.set_label(self.error.as_deref().unwrap_or(""));
@@ -1336,4 +1554,17 @@ fn agent_args_from_env() -> Vec<String> {
     std::env::var("SANGWARD_GTK_AGENT_ARGS")
         .map(|s| s.split_whitespace().map(str::to_owned).collect())
         .unwrap_or_default()
+}
+
+/// Agent arguments for a frontend-spawned agent: harness overrides first, then
+/// the saved auto-lock timeout unless the caller already specified one.
+fn agent_args(settings: &Settings) -> Vec<String> {
+    let mut args = agent_args_from_env();
+    if !args
+        .iter()
+        .any(|a| a == "--auto-lock-secs" || a.starts_with("--auto-lock-secs="))
+    {
+        args.push(format!("--auto-lock-secs={}", settings.auto_lock_secs));
+    }
+    args
 }
