@@ -16,6 +16,8 @@
     pkgs.vaultwarden
     pkgs.xvfb-run
     pkgs.xorg.xauth
+    # README demo GIF (`just capture-readme`).
+    pkgs.ffmpeg-full
     # Harness TLS: bw refuses plain-http servers, so Vaultwarden runs with a throwaway CA.
     pkgs.openssl
     # Isolated session bus for the GTK smoke test.

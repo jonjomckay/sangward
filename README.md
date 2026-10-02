@@ -10,6 +10,8 @@ you step away.
 
 Sangward is an independent project. It is not affiliated with Bitwarden Inc.
 
+![Filtering the vault by typing in the search box, selecting a login, revealing its password, then locking the vault](docs/demo.gif)
+
 ## Why is it called Sangward?
 
 The name is two words put together:

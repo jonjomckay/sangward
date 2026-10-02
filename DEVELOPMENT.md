@@ -146,6 +146,21 @@ Harness settings (ports, test users, budgets) are the `SW_*` variables in
 `devenv.nix`. The test passwords and admin token there are throwaway values
 for the local harness only.
 
+## README assets
+
+The demo GIF in [README.md](README.md) is captured from the real app, not
+hand-drawn. To regenerate it, seed the harness and capture:
+
+```sh
+just harness-up && scripts/seed.sh   # throwaway Vaultwarden + fake items
+just capture-readme                  # writes docs/demo.gif
+```
+
+`scripts/capture-readme.sh` runs `crates/sangward-gtk/examples/readme-demo.rs`
+under Xvfb with a private D-Bus session and a per-run agent, drives the real
+`App` past the login screen and records the screen with `ffmpeg`. It logs in as
+the seeded PBKDF2 user, so everything on screen is fake harness data.
+
 ## Continuous integration and releases
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:

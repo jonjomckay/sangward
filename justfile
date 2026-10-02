@@ -47,6 +47,10 @@ gtk-smoke:
 gtk-ui *scenario:
     scripts/gtk-ui-test.sh {{scenario}}
 
+# Capture docs/demo.gif from the seeded harness (run harness-up + seed first).
+capture-readme:
+    scripts/capture-readme.sh
+
 # Mirror Cargo.toml's [workspace.package] rust-version into rust-toolchain.toml.
 sync-toolchain:
     scripts/sync-toolchain.sh
